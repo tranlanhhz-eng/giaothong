@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS - Bản đồ hiển thị</title>
+    <title>WebGIS - Bản đồ Giao thông VN2000</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -29,29 +29,37 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 
     <script>
-        // Khởi tạo bản đồ nền tập trung vào Việt Nam
+        // Định nghĩa chuỗi tham số hệ tọa độ phẳng VN-2000 
+        // Tự động nhận diện lõi tọa độ trục Việt Nam từ file của bạn
+        proj4.defs("VN2000", "+proj=tmerc +lat_0=0 +lon_0=107.75 +k=0.9999 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
+
         var map = L.map('map').setView([16.047079, 108.206230], 6);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Hàm chuyển đổi tọa độ nâng cao xử lý triệt để mọi kiểu hình học (Point, Line, Polygon)
+        // Hàm tự động phát hiện số mét và bóc tách cấu trúc để chuyển đổi sang Kinh/Vĩ độ web
         function transformCoords(coords, type) {
             if (type === 'Point') {
-                var p = proj4('EPSG:3857', 'EPSG:4326', coords);
+                // Kiểm tra nếu là số mét của hệ tọa độ phẳng Việt Nam thì dùng bộ dịch phù hợp
+                var sourceCRS = (coords[0] > 2000000) ? 'EPSG:3857' : 'VN2000';
+                var p = proj4(sourceCRS, 'EPSG:4326', coords);
                 return [p[1], p[0]];
             }
             if (type === 'LineString' || type === 'MultiPoint') {
                 return coords.map(function(c) {
-                    var p = proj4('EPSG:3857', 'EPSG:4326', c);
+                    var sourceCRS = (c[0] > 2000000) ? 'EPSG:3857' : 'VN2000';
+                    var p = proj4(sourceCRS, 'EPSG:4326', c);
                     return [p[1], p[0]];
                 });
             }
             if (type === 'Polygon' || type === 'MultiLineString') {
                 return coords.map(function(ring) {
                     return ring.map(function(c) {
-                        var p = proj4('EPSG:3857', 'EPSG:4326', c);
+                        var sourceCRS = (c[0] > 2000000) ? 'EPSG:3857' : 'VN2000';
+                        var p = proj4(sourceCRS, 'EPSG:4326', c);
                         return [p[1], p[0]];
                     });
                 });
@@ -60,7 +68,8 @@
                 return coords.map(function(poly) {
                     return poly.map(function(ring) {
                         return ring.map(function(c) {
-                            var p = proj4('EPSG:3857', 'EPSG:4326', c);
+                            var sourceCRS = (c[0] > 2000000) ? 'EPSG:3857' : 'VN2000';
+                            var p = proj4(sourceCRS, 'EPSG:4326', c);
                             return [p[1], p[0]];
                         });
                     });
@@ -69,14 +78,12 @@
             return coords;
         }
 
-        // Đọc dữ liệu
         fetch('map_data.geojson')
             .then(function(response) {
                 if (!response.ok) throw new Error('Không thể tải file dữ liệu');
                 return response.json();
             })
             .then(function(data) {
-                // Tiến hành ép cấu trúc hình học EPSG:3857 sang WGS84
                 var cleanData = JSON.parse(JSON.stringify(data));
                 cleanData.features.forEach(function(feature) {
                     if (feature.geometry && feature.geometry.coordinates) {
@@ -84,15 +91,14 @@
                     }
                 });
 
-                // Hiển thị lên bản đồ nền web
                 var geojsonLayer = L.geoJson(cleanData, {
                     style: function (feature) {
-                        return { color: "#ff3333", weight: 3, opacity: 0.85, fillColor: "#ffaa00", fillOpacity: 0.4 };
+                        return { color: "#0066ff", weight: 4, opacity: 0.85, fillColor: "#33ccff", fillOpacity: 0.5 };
                     },
                     onEachFeature: function (feature, layer) {
                         layer.on('click', function (e) {
                             var props = feature.properties;
-                            var html = "<ul style='padding-left: 15px;'>";
+                            var html = "<ul style='padding-left: 15px; max-height: 200px; overflow-y: auto;'>";
                             for (var key in props) {
                                 html += "<li><strong>" + key + ":</strong> " + props[key] + "</li>";
                             }
@@ -102,12 +108,12 @@
                     }
                 }).addTo(map);
 
-                // Tự động thu phóng màn hình tới đúng vị trí tuyến đường/đối tượng dữ liệu của bạn
+                // Tự động nhảy màn hình đến khu vực có lớp dữ liệu giao thông
                 map.fitBounds(geojsonLayer.getBounds());
             })
             .catch(function(error) {
                 console.error(error);
-                document.getElementById('feature-info').innerHTML = "<p style='color:red;'>Lỗi xử lý dữ liệu cấu trúc GeoJSON. Hãy chắc chắn tệp không bị rỗng.</p>";
+                document.getElementById('feature-info').innerHTML = "<p style='color:red;'>Lỗi đồng bộ dữ liệu. Vui lòng làm mới trang.</p>";
             });
     </script>
 </body>
