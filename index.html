@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS - Bản đồ Giao thông</title>
+    <title>WebGIS - Bản đồ Giao thông Google Maps</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -28,14 +28,23 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // Khởi tạo bản đồ nền OpenStreetMap
+        // Khởi tạo bản đồ nền tập trung vào Việt Nam
         var map = L.map('map').setView([16.047079, 108.206230], 6);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+        // --- CẤU HÌNH BẢN ĐỒ NỀN GOOGLE MAPS ---
+        // Bạn có thể chọn 1 trong các kiểu hiển thị dưới đây bằng cách thay đổi ký tự cuối cùng của link (lyrs=...)
+        // m: Bản đồ giao thông chuẩn (Default Google Maps)
+        // s: Bản đồ Vệ tinh (Satellite)
+        // y: Bản đồ Vệ tinh có hiện tên đường (Hybrid)
+        // p: Bản đồ địa hình (Terrain)
+        
+        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: '© Google Maps',
+            maxZoom: 22,        // Giữ nguyên tính năng mở khóa zoom kịch kim cấp 22
+            maxNativeZoom: 20   // Google Maps hỗ trợ ảnh gốc lên tới cấp 20, zoom rất nét
         }).addTo(map);
 
-        // Đọc trực tiếp dữ liệu GeoJSON chuẩn hệ 4326
+        // Đọc dữ liệu GeoJSON (Hệ tọa độ 4326 chuẩn quốc tế)
         fetch('map_data.geojson')
             .then(response => {
                 if (!response.ok) throw new Error('Không thể tải file dữ liệu');
@@ -45,15 +54,16 @@
                 var geojsonLayer = L.geoJSON(data, {
                     style: function (feature) {
                         return {
-                            color: "#ff3333", // Đường viền màu đỏ nổi bật cho giao thông
-                            weight: 4,
+                            color: "#ff3333", // Đường viền màu đỏ nổi bật cho các tuyến giao thông
+                            weight: 4,        // Độ đậm của đường nét tuyển đường
                             opacity: 0.85
                         };
                     },
                     onEachFeature: function (feature, layer) {
+                        // Sự kiện khi người dùng click vào đường giao thông
                         layer.on('click', function (e) {
                             var props = feature.properties;
-                            var html = "<ul style='padding-left: 15px; max-height: 200px; overflow-y: auto;'>";
+                            var html = "<ul style='padding-left: 15px; max-height: 250px; overflow-y: auto;'>";
                             for (var key in props) {
                                 html += `<li><strong>${key}:</strong> ${props[key]}</li>`;
                             }
@@ -63,7 +73,7 @@
                     }
                 }).addTo(map);
 
-                // Tự động zoom thẳng vào khu vực có dữ liệu đường sá của bạn
+                // Tự động zoom thẳng vào khu vực mạng lưới giao thông của bạn ngay khi tải trang
                 map.fitBounds(geojsonLayer.getBounds());
             })
             .catch(error => {
