@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS - Bản đồ Giao thông Google Maps</title>
+    <title>WebGIS - Bản đồ Giao thông Google Maps Đa Nền</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -13,6 +13,10 @@
             background: white; padding: 15px; border-radius: 5px;
             box-shadow: 0 0 15px rgba(0,0,0,0.2); max-width: 300px;
             font-family: Arial, sans-serif;
+        }
+        /* Tùy biến để đưa thanh chuyển bản đồ nền sang góc bên trái dưới nút phóng to/thu nhỏ */
+        .leaflet-left .leaflet-control {
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -28,23 +32,41 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // Khởi tạo bản đồ nền tập trung vào Việt Nam
-        var map = L.map('map').setView([16.047079, 108.206230], 6);
+        // 1. ĐỊNH NGHĨA 3 BẢN ĐỒ NỀN GOOGLE MAPS
+        var googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: '© Google Maps', maxZoom: 22, maxNativeZoom: 20
+        });
 
-        // --- CẤU HÌNH BẢN ĐỒ NỀN GOOGLE MAPS ---
-        // Bạn có thể chọn 1 trong các kiểu hiển thị dưới đây bằng cách thay đổi ký tự cuối cùng của link (lyrs=...)
-        // m: Bản đồ giao thông chuẩn (Default Google Maps)
-        // s: Bản đồ Vệ tinh (Satellite)
-        // y: Bản đồ Vệ tinh có hiện tên đường (Hybrid)
-        // p: Bản đồ địa hình (Terrain)
-        
-        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            attribution: '© Google Maps',
-            maxZoom: 22,        // Giữ nguyên tính năng mở khóa zoom kịch kim cấp 22
-            maxNativeZoom: 20   // Google Maps hỗ trợ ảnh gốc lên tới cấp 20, zoom rất nét
+        var googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: '© Google Maps', maxZoom: 22, maxNativeZoom: 20
+        });
+
+        var googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            attribution: '© Google Maps', maxZoom: 22, maxNativeZoom: 20
+        });
+
+        // 2. KHỞI TẠO BẢN ĐỒ (Mặc định hiển thị bản đồ giao thông Roadmap)
+        var map = L.map('map', {
+            center: [16.047079, 108.206230],
+            zoom: 6,
+            layers: [googleRoadmap] // Bản đồ xuất hiện đầu tiên khi tải trang
+        });
+
+        // 3. TẠO DANH SÁCH BẢN ĐỒ NỀN ĐỂ CHÈN VÀO THANH BẬT TẮT
+        var baseMaps = {
+            "Google Giao thông": googleRoadmap,
+            "Google Vệ tinh": googleSatellite,
+            "Google Vệ tinh Lai (Hiện tên đường)": googleHybrid
+        };
+
+        // 4. THÊM THANH BẬT TẮT VÀO GÓC BÊN TRÁI (topleft)
+        L.control.layers(baseMaps, null, {
+            position: 'topleft', // Đặt thanh điều khiển ở bên trái màn hình
+            collapsed: false     // Giữ thanh luôn mở rộng để người dùng dễ chọn (đổi thành true nếu muốn ẩn vào icon)
         }).addTo(map);
 
-        // Đọc dữ liệu GeoJSON (Hệ tọa độ 4326 chuẩn quốc tế)
+
+        // 5. ĐỌC VÀ HIỂN THỊ DỮ LIỆU GEOJSON CỦA BẠN
         fetch('map_data.geojson')
             .then(response => {
                 if (!response.ok) throw new Error('Không thể tải file dữ liệu');
@@ -60,7 +82,6 @@
                         };
                     },
                     onEachFeature: function (feature, layer) {
-                        // Sự kiện khi người dùng click vào đường giao thông
                         layer.on('click', function (e) {
                             var props = feature.properties;
                             var html = "<ul style='padding-left: 15px; max-height: 250px; overflow-y: auto;'>";
@@ -73,7 +94,7 @@
                     }
                 }).addTo(map);
 
-                // Tự động zoom thẳng vào khu vực mạng lưới giao thông của bạn ngay khi tải trang
+                // Tự động zoom thẳng vào khu vực mạng lưới giao thông của bạn
                 map.fitBounds(geojsonLayer.getBounds());
             })
             .catch(error => {
