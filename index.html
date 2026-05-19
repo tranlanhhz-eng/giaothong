@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebGIS - EPSG:3857 Bản đồ hiển thị</title>
-    <!-- Nhúng CSS của Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -26,15 +25,13 @@
         <div id="feature-info"></div>
     </div>
 
-    <!-- 1. Nhúng thư viện Leaflet gốc -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- 2. Nhúng thư viện Proj4js và Proj4Leaflet để xử lý hệ tọa độ EPSG:3857 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script>
 
     <script>
-        // Định nghĩa hệ tọa độ EPSG:3857 cho bộ chuyển đổi
+        // Định nghĩa hệ tọa độ EPSG:3857 cho Leaflet thông qua Proj4Leaflet
         var crs3857 = new L.Proj.CRS('EPSG:3857',
             '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs',
             {
@@ -50,44 +47,27 @@
             }
         );
 
-        // Khởi tạo bản đồ nền (Sử dụng hệ tọa độ chuẩn của Web)
-        var map = L.map('map').setView([16.047079, 108.206230], 6);
+        // QUAN TRỌNG: Khởi tạo bản đồ và ép bản đồ sử dụng Hệ tọa độ EPSG:3857 vừa định nghĩa
+        var map = L.map('map', {
+            crs: crs3857,
+            continuousWorld: true,
+            worldCopyJump: false
+        }).setView([16.047079, 108.206230], 6);
 
-        // Thêm lớp bản đồ nền OpenStreetMap
+        // Thêm lớp bản đồ nền OpenStreetMap (Nền OSM gốc cũng chạy trên 3857 nên sẽ khớp hoàn toàn)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap contributors',
+            noWrap: true // Tránh việc lặp bản đồ vô tận sang hai bên vĩ độ
         }).addTo(map);
 
-        // Hàm chuyển đổi hình học từ dữ liệu EPSG:3857 sang tọa độ Leaflet hiển thị được
-        function convertCoords(coords, type) {
-            if (type === 'Point') {
-                var pt = proj4('EPSG:3857', 'EPSG:4326', coords);
-                return [pt[1], pt[0]];
-            } else if (type === 'LineString' || type === 'MultiPoint') {
-                return coords.map(c => { var pt = proj4('EPSG:3857', 'EPSG:4326', c); return [pt[1], pt[0]]; });
-            } else if (type === 'Polygon' || type === 'MultiLineString') {
-                return coords.map(ring => ring.map(c => { var pt = proj4('EPSG:3857', 'EPSG:4326', c); return [pt[1], pt[0]]; }));
-            } else if (type === 'MultiPolygon') {
-                return coords.map(poly => poly.map(ring => ring.map(c => { var pt = proj4('EPSG:3857', 'EPSG:4326', c); return [pt[1], pt[0]]; })));
-            }
-            return coords;
-        }
-
-        // Tải và xử lý file dữ liệu GeoJSON
+        // Tải và xử lý file dữ liệu GeoJSON 
         fetch('map_data.geojson')
             .then(response => response.json())
             .then(data => {
                 
-                // Tiền xử lý tọa độ trong file GeoJSON từ 3857 sang định dạng Leaflet hiểu được
-                var convertedData = JSON.parse(JSON.stringify(data)); 
-                convertedData.features.forEach(feature => {
-                    if (feature.geometry) {
-                        feature.geometry.coordinates = convertCoords(feature.geometry.coordinates, feature.geometry.type);
-                    }
-                });
-
-                // Hiển thị lớp dữ liệu lên bản đồ
-                var geojsonLayer = L.geoJSON(convertedData, {
+                // Do bản đồ đang chạy hệ 3857 và dữ liệu của bạn cũng là hệ 3857, 
+                // chúng ta truyền thẳng dữ liệu vào L.geoJSON mà KHÔNG CẦN chuyển đổi tọa độ thủ công nữa.
+                var geojsonLayer = L.geoJSON(data, {
                     style: function (feature) {
                         return {
                             color: "#3388ff", // Màu đường viền đối tượng
